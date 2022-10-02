@@ -10,9 +10,10 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2022_10_01_160701) do
+ActiveRecord::Schema[7.0].define(version: 2022_10_02_124921) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
+  enable_extension "postgis"
 
   create_table "area_types", force: :cascade do |t|
     t.string "slug", null: false, comment: "A unique slug for an area type - we use the MapIt slug"
