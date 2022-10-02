@@ -1,0 +1,2 @@
+class ElectionType < ApplicationRecord
+end

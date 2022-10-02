@@ -1,0 +1,2 @@
+class OrganizationType < ApplicationRecord
+end

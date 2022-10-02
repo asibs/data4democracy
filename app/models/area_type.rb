@@ -1,0 +1,2 @@
+class AreaType < ApplicationRecord
+end
