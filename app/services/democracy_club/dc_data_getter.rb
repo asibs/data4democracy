@@ -19,7 +19,9 @@ module DemocracyClub
     def call
       @dc_api.elections(election_type: @election_type_slug).each do |page|
         page.each do |election_json|
-          create_election(election_json)
+          # It seems that the DC API doesn't pay attention to the Election Type Slug query param,
+          # so explicitly check the election type before creation
+          create_election(election_json) if election_json['slug'].split('.')&.first == @election_type_slug
         end
       end
     end
@@ -43,6 +45,21 @@ module DemocracyClub
         ballot = Ballot.find_or_initialize_by(democracy_club_id: ballot_json['ballot_paper_id'])
         ballot.election = election
         ballot.area = find_or_create_area_from_ballot!(ballot_json)
+        ballot.total_electorate = result_json['total_electorate']
+        ballot.turnout_number = result_json['num_turnout_reported']
+        ballot.turnout_percentage = result_json['turnout_percentage']
+        ballot.number_of_spoilt_ballots = result_json['num_spoilt_ballots']
+
+        result_json['candidate_results'].each do |candidate_result_json|
+          candidate = Candidate.find_or_initialize_by(
+            ballot: ballot,
+            person: find_or_create_person!(candidate_result_json.dig('person', 'id')),
+            party: find_or_create_party!(candidate_result_json.dig('party', 'ec_id'))
+          )
+          candidate.elected = (candidate_result_json['elected'] == true) # Required because DC API is NULL for some candidates
+          candidate.number_of_ballots = candidate_result_json['num_ballots']
+          candidate.save!
+        end
       end
     end
 
@@ -57,6 +74,34 @@ module DemocracyClub
       gss_code = post_id.remove(/^gss:/)
 
       Area.find_by(gss_code: gss_code) || Mapit::MapitAreaCreator.call(gss_code: gss_code)
+    end
+
+    def find_or_create_person!(person_id)
+      person_json = @dc_api.person(person_id: person_id)
+
+      person = Person.find_or_initialize_by(democracy_club_id: person_id)
+      person.name = person_json['name']
+      person.honorific_prefix = person_json['honorific_prefix']
+      person.honorific_suffix = person_json['honorific_suffix']
+      # Birth/death date seem to always be just a year, not a full date...
+      # person.birth_date = Date.parse(person_json['birth_date']) if person_json['birth_date'].present?
+      # person.death_date = Date.parse(person_json['death_date']) if person_json['death_date'].present?
+      person.gender = person_json['gender']
+      person.save!
+
+      person
+    end
+
+    def find_or_create_party!(party_id)
+      party = Party.find_or_initialize_by(ec_id: party_id)
+
+      return party unless party.new_record?
+
+      party_json = @dc_api.party(party_ec_id: party_id)
+      party.name = party_json['name']
+      party.save!
+
+      party
     end
   end
 end

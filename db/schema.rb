@@ -10,10 +10,19 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2022_10_02_124921) do
+ActiveRecord::Schema[7.0].define(version: 2022_10_02_151301) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
   enable_extension "postgis"
+
+  create_table "area_boundaries", force: :cascade do |t|
+    t.bigint "area_id", null: false
+    t.geometry "boundary", limit: {:srid=>0, :type=>"geometry"}, null: false
+    t.datetime "created_at", null: false
+    t.datetime "updated_at", null: false
+    t.index ["area_id"], name: "index_area_boundaries_on_area_id", unique: true
+    t.index ["boundary"], name: "index_area_boundaries_on_boundary", using: :gist
+  end
 
   create_table "area_types", force: :cascade do |t|
     t.string "slug", null: false, comment: "A unique slug for an area type - we use the MapIt slug"
@@ -40,7 +49,7 @@ ActiveRecord::Schema[7.0].define(version: 2022_10_02_124921) do
   end
 
   create_table "ballots", force: :cascade do |t|
-    t.string "slug", null: false, comment: "A unique slug for a ballot - we use the Democracy Club slug"
+    t.string "democracy_club_id", null: false, comment: "The unique Democracy Club ID for the ballot paper"
     t.bigint "election_id", null: false
     t.bigint "area_id", null: false
     t.integer "total_electorate"
@@ -50,11 +59,11 @@ ActiveRecord::Schema[7.0].define(version: 2022_10_02_124921) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.index ["area_id"], name: "index_ballots_on_area_id"
+    t.index ["democracy_club_id"], name: "index_ballots_on_democracy_club_id", unique: true
     t.index ["election_id"], name: "index_ballots_on_election_id"
-    t.index ["slug"], name: "index_ballots_on_slug", unique: true
   end
 
-  create_table "candidacies", force: :cascade do |t|
+  create_table "candidates", force: :cascade do |t|
     t.bigint "ballot_id", null: false
     t.bigint "person_id", null: false
     t.bigint "party_id"
@@ -62,9 +71,11 @@ ActiveRecord::Schema[7.0].define(version: 2022_10_02_124921) do
     t.integer "number_of_ballots", null: false
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
-    t.index ["ballot_id"], name: "index_candidacies_on_ballot_id"
-    t.index ["party_id"], name: "index_candidacies_on_party_id"
-    t.index ["person_id"], name: "index_candidacies_on_person_id"
+    t.index ["ballot_id"], name: "index_candidates_on_ballot_id"
+    t.index ["elected"], name: "index_candidates_on_elected"
+    t.index ["number_of_ballots"], name: "index_candidates_on_number_of_ballots"
+    t.index ["party_id"], name: "index_candidates_on_party_id"
+    t.index ["person_id"], name: "index_candidates_on_person_id"
   end
 
   create_table "election_types", force: :cascade do |t|

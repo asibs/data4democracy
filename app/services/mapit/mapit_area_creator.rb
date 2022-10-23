@@ -17,8 +17,12 @@ module Mapit
       area.active = get_active(area_json['generation_high'])
       area.save!
 
-      area_geography = @mapit_api.area_geography(gss_code: @gss_code)
-      # TODO: Insert area_geography record
+      area_boundary_data = @mapit_api.area_boundary(gss_code: @gss_code)
+      area_boundary = AreaBoundary.find_or_initialize_by(area: area)
+      area_boundary.boundary = area_boundary_data
+      area_boundary.save!
+
+      area
     end
 
     private
@@ -27,6 +31,8 @@ module Mapit
       area_type = AreaType.find_or_initialize_by(slug: slug)
       area_type.name = name
       area_type.save!
+
+      area_type
     end
 
     def get_valid_from(generation_id)

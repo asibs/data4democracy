@@ -2,26 +2,26 @@ module DemocracyClub
   class DcApi
     BASE_URI = 'https://candidates.democracyclub.org.uk/api/next/'
 
-    ELECTIONS_URI = URI::join(BASE_URI, 'elections/')
     BALLOTS_URI = URI::join(BASE_URI, 'ballots/')
+    ELECTIONS_URI = URI::join(BASE_URI, 'elections/')
+    PARTIES_URI = URI::join(BASE_URI, 'parties/')
+    PEOPLE_URI = URI::join(BASE_URI, 'people/')
     RESULTS_URI = URI::join(BASE_URI, 'results/')
 
     def initialize
-      @connection = Faraday.new do |f|
-        f.use FaradayMiddleware::FollowRedirects, limit: 5
-        f.adapter Faraday.default_adapter
+      retry_options = {
+        max: 3,
+        interval: 0.5,
+        interval_randomness: 0.5,
+        backoff_factor: 2,
+        retry_statuses: [429] # Retry rate-limits after the correct amount of time
+      }
+
+      @connection = Faraday.new do |faraday|
+        faraday.request :retry, retry_options
+        faraday.response :follow_redirects # use Faraday::FollowRedirects::Middleware
+        faraday.adapter Faraday.default_adapter
       end
-    end
-
-    # Get all elections
-    def elections(election_type:)
-      get_paged_data(ELECTIONS_URI, { election_type: election_type })
-    end
-
-    # Get a single election
-    def election(election_slug:)
-      uri = URI::join(ELECTIONS_URI, election_slug)
-      get_data(uri)
     end
 
     # Get all ballots
@@ -31,8 +31,41 @@ module DemocracyClub
 
     # Get a single ballot
     def ballot(ballot_paper_id:)
-      uri = URI::join(BALLOTS_URI, ballot_paper_id)
-      get_data(uri)
+      uri = URI::join(BALLOTS_URI, ERB::Util.url_encode(ballot_paper_id))
+      get_json_data(uri)
+    end
+
+    # Get all elections
+    def elections(election_type:)
+      get_paged_data(ELECTIONS_URI, { election_type: election_type })
+    end
+
+    # Get a single election
+    def election(election_slug:)
+      uri = URI::join(ELECTIONS_URI, ERB::Util.url_encode(election_slug))
+      get_json_data(uri)
+    end
+
+    # Get all parties
+    def parties
+      get_paged_data(PARTIES_URI)
+    end
+
+    # Get a single party
+    def party(party_ec_id:)
+      uri = URI::join(PARTIES_URI, ERB::Util.url_encode(party_ec_id))
+      get_json_data(uri)
+    end
+
+    # Get all people
+    def people
+      get_paged_data(PEOPLE_URI)
+    end
+
+    # Get a single person
+    def person(person_id:)
+      uri = URI::join(PEOPLE_URI, ERB::Util.url_encode(person_id))
+      get_json_data(uri)
     end
 
     # Get all results
@@ -42,8 +75,8 @@ module DemocracyClub
 
     # Get results of a single ballot
     def result(ballot_paper_id:)
-      uri = URI::join(RESULTS_URI, ballot_paper_id)
-      get_data(uri)
+      uri = URI::join(RESULTS_URI, ERB::Util.url_encode(ballot_paper_id))
+      get_json_data(uri)
     end
 
     private
@@ -56,8 +89,12 @@ module DemocracyClub
       response.body
     end
 
+    def get_json_data(uri, params = {})
+      JSON.parse(get_data(uri, params))
+    end
+
     def get_paged_data(uri, params = {})
-      PagedApiData.new(self, get_data(uri, params))
+      PagedApiData.new(self, get_json_data(uri, params))
     end
 
     # Convenience wrapper class for paged data from DC, providing an easy way to get next & previous pages.
@@ -72,9 +109,9 @@ module DemocracyClub
     class PagedApiData
       include Enumerable
 
-      def initialize(dc_api, raw_data)
+      def initialize(dc_api, json_data)
         @dc_api = dc_api
-        @json_data = JSON.parse(raw_data)
+        @json_data = json_data
       end
 
       def result_count
@@ -99,6 +136,7 @@ module DemocracyClub
 
       def each(&block)
         block.call(results)
+        debugger
         next_page&.each(block)
       end
     end

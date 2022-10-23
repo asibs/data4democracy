@@ -33,6 +33,13 @@ class CreateInitialSchema < ActiveRecord::Migration[7.0]
       t.timestamps
     end
 
+    create_table :area_boundaries do |t|
+      t.references :area, null: false, index: { unique: true }
+      t.geometry :boundary, null: false, index: { using: :gist }
+
+      t.timestamps
+    end
+
     # TODO: Decide if we need organizations...
     # create_table :organizations do |t|
     #   t.string :slug, null: false, index: { unique: true }, comment: 'A unique slug for the organization - we use the Democracy Club slug'
@@ -79,12 +86,12 @@ class CreateInitialSchema < ActiveRecord::Migration[7.0]
       t.timestamps
     end
 
-    create_table :candidacies do |t|
+    create_table :candidates do |t|
       t.references :ballot, null: false
       t.references :person, null: false
-      t.references :party
-      t.boolean :elected, null: false
-      t.integer :number_of_ballots, null: false
+      t.references :party, null: true
+      t.boolean :elected, null: false, index: true
+      t.integer :number_of_ballots, null: false, index: true
 
       t.timestamps
     end

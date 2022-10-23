@@ -52,6 +52,7 @@ gem 'activerecord-postgis-adapter'
 
 gem 'faraday'
 gem 'faraday-retry'
+gem 'faraday-follow_redirects'
 
 group :development, :test do
   # See https://guides.rubyonrails.org/debugging_rails_applications.html#debugging-with-the-debug-gem
