@@ -2,6 +2,12 @@
 
 ## About
 
+Data4Democracy provides local data about UK constituencies and electoral wards.
+This includes election results and demographic data.
+
+This project is still in the early phases, but the intention is that Data4Democracy
+will provide an API to get data, as well as a UI to browse data.
+
 ## Installation
 
 ### Local Install
@@ -28,11 +34,40 @@
 
 **Get data**
 
+The election data is loaded from [Democracy Club](https://democracyclub.org.uk/) and area /
+boundary data is loaded from [FindThatPostcode](https://findthatpostcode.uk/).
+
+Run the rails console: `rails c`
+
+```ruby
+# Load Westminster Parliamentary elections
+DemocracyClub::DcDataGetter.call(election_type_slug: 'parl')
+
+# Load Local Council elections
+DemocracyClub::DcDataGetter.call(election_type_slug: 'local')
+```
+
+This will take _a long time_ if you run it for all elections, as it will load election
+results _and_ area boundary geographic data.
+
+You can limit it to certain dates by also passing the `election_date_before` & `election_date_after`
+parameters.
+
 **Run the app**
+
+Run the server: `rails s`
+
+You can then access a proof-of-concept UI from: http://localhost:3000/areas/
+
+Click on an area from the list to see a map with that constituency highlighted in red.
 
 ### Heroku Install
 
 TODO
+
+
+
+
 
 
 
