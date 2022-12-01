@@ -1,0 +1,50 @@
+<!-- Make sure you put this AFTER Leaflet's CSS -->
+<script src="https://unpkg.com/leaflet@1.9.2/dist/leaflet.js"
+    integrity="sha256-o9N1jGDZrf5tS+Ft4gbIK7mYMipq9lqpVJ91xHSyKhg="
+    crossorigin=""></script>
+
+<h1>
+  <%= @area.name %>
+</h1>
+<h2>
+  <%= @area.gss_code %>
+</h2>
+
+<div id="map" style="height: 750px; width: 750px;"></div>
+
+<script>
+  var map = L.map('map').setView([51.505, -0.09], 13);
+
+  L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+  }).addTo(map);
+
+  drawGeography('<%= @area.id %>', '<%= @area.name %>');
+
+  async function drawGeography(areaId, areaName) {
+    let response = await fetch(`/areas/${areaId}/boundary.geojson`);
+
+    if (response.status === 200) {
+      console.log(`Found boundary for ${areaId}, HTTP response was ${response.status}`);
+      let geoJsonData = await response.text();
+      console.log(`geoJsonData is ${geoJsonData}`);
+      let parsedGeoJsonData = JSON.parse(geoJsonData);
+      console.log(`parsedGeoJsonData is ${parsedGeoJsonData}`);
+
+      currentRegionGeo = L.geoJSON({
+        "type": "Feature",
+        "properties": {
+          "name": areaName
+        },
+        "geometry": parsedGeoJsonData
+      }, {
+        style: {color: "#ff0000"}
+      });
+      console.log(`currentRegionGeo is ${currentRegionGeo}`);
+      currentRegionGeo.addTo(map);
+    } else {
+      console.log(`Could not get boundary for ${areaId}, HTTP response was ${response.status}`);
+    }
+  }
+</script>

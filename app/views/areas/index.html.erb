@@ -1,0 +1,21 @@
+<h1>Listing Areas</h1>
+
+<table>
+  <thead>
+    <tr>
+      <th>GSS Code</th>
+      <th>Name</th>
+      <th></th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <% @areas.each do |area| %>
+      <tr>
+        <td><%= area.gss_code %></td>
+        <td><%= area.name %></td>
+        <td><%= link_to "Show", area %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>

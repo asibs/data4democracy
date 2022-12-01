@@ -1,9 +1,9 @@
-module Mapit
-  class MapitApi
-    BASE_URI = 'https://mapit.mysociety.org/'
+module FindThatPostcode
+  class FindThatPostcodeApi
+    BASE_URI = 'https://findthatpostcode.uk/'
 
-    AREA_URI = URI::join(BASE_URI, 'area/')
-    GENERATIONS_URI = URI::join(BASE_URI, 'generations')
+    AREA_URI = URI::join(BASE_URI, 'areas/')
+    AREA_TYPE_URI = URI::join(BASE_URI, 'areatypes/')
 
     def initialize
       retry_options = {
@@ -28,21 +28,15 @@ module Mapit
     end
 
     # Get the boundary data for a single area
-    def area_boundary(gss_code:, simplify_tolerance: nil)
-      uri = URI::join(AREA_URI, "#{gss_code}.wkt")
-      params = {}
-      params['simplify_tolerance'] = simplify_tolerance if simplify_tolerance.present?
-      get_data(uri, params)
+    def area_boundary(gss_code:)
+      uri = URI::join(AREA_URI, "#{gss_code}.geojson")
+      get_json_data(uri)
     end
 
-    # Get all generations
-    def generations
-      # Cache generations rather than spamming Mapit API - they change VERY rarely
-      @generations = get_json_data(GENERATIONS_URI)
-    end
-
-    def generation(generation_id:)
-      generations.values.select { |g| g['id'] == generation_id }.first
+    # Get a single area type
+    def area_type(slug:)
+      uri = URI::join(AREA_TYPE_URI, "#{slug}.json")
+      get_json_data(uri)
     end
 
     private
@@ -50,7 +44,7 @@ module Mapit
     def get_data(uri, params = {})
       response = @connection.get(uri, params)
 
-      raise MapitApiError.new(response.status) unless response.success?
+      raise FindThatPostcodeApiError.new(response.status) unless response.success?
 
       response.body
     end
@@ -60,7 +54,7 @@ module Mapit
     end
   end
 
-  class MapitApiError < StandardError
+  class FindThatPostcodeApiError < StandardError
     attr_reader :http_code
 
     def initialize(http_code)

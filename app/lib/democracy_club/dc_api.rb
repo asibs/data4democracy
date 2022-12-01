@@ -10,8 +10,8 @@ module DemocracyClub
 
     def initialize
       retry_options = {
-        max: 3,
-        interval: 0.5,
+        max: 5,
+        interval: 5,
         interval_randomness: 0.5,
         backoff_factor: 2,
         retry_statuses: [429] # Retry rate-limits after the correct amount of time
@@ -24,9 +24,18 @@ module DemocracyClub
       end
     end
 
-    # Get all ballots
-    def ballots
-      get_paged_data(BALLOTS_URI)
+    # Get all ballots that match the given filters
+    # (or just all ballots if no params passed)
+    def ballots(election_type: nil, election_date_after: nil, election_date_before: nil, has_results: nil)
+      get_paged_data(
+        BALLOTS_URI,
+        {
+          election_type: election_type,
+          election_date_range_after: election_date_after&.strftime('%F'),
+          election_date_range_before: election_date_before&.strftime('%F'),
+          has_results: has_results
+        }
+      )
     end
 
     # Get a single ballot
@@ -36,8 +45,8 @@ module DemocracyClub
     end
 
     # Get all elections
-    def elections(election_type:)
-      get_paged_data(ELECTIONS_URI, { election_type: election_type })
+    def elections
+      get_paged_data(ELECTIONS_URI)
     end
 
     # Get a single election
@@ -84,7 +93,7 @@ module DemocracyClub
     def get_data(uri, params = {})
       response = @connection.get(uri, params)
 
-      raise DcApiError, "HTTP code #{response.status}" unless response.success?
+      raise DcApiError.new(response.status) unless response.success?
 
       response.body
     end
@@ -125,22 +134,28 @@ module DemocracyClub
       def next_page
         return nil unless @json_data['next'].present?
 
-        @dc_api.get_paged_data(@json_data['next'])
+        @dc_api.send(:get_paged_data, @json_data['next'])
       end
 
       def previous_page
         return nil unless @json_data['previous'].present?
 
-        @dc_api.get_paged_data(@json_data['previous'])
+        @dc_api.send(:get_paged_data, @json_data['previous'])
       end
 
       def each(&block)
         block.call(results)
-        debugger
-        next_page&.each(block)
+        next_page&.each(&block)
       end
     end
   end
 
-  class DcApiError < StandardError; end
+  class DcApiError < StandardError
+    attr_reader :http_code
+
+    def initialize(http_code)
+      @http_code = http_code
+      super("HTTP code #{http_code}")
+    end
+  end
 end

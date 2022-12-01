@@ -4,76 +4,130 @@ module DemocracyClub
   # Requires an election_type_slug (eg. 'parl', 'local'), which determines the
   # type of elections this class will load.
   #
+  # Optionally accepts an election_date_after, eg. 1.year.ago
+  #
   # Optionally accepts update_mode. If set to true, the class will check
   # all elections are up-to-date with the latest data from DC, otherwise it
   # will only insert data about new elections which aren't yet in our database.
   # Defaults to false.
+  #
+  # Example usage:
+  #   DemocracyClub::DcDataGetter.call(election_type_slug: 'parl', update_mode: true)
   class DcDataGetter < ApplicationService
-    def initialize(election_type_slug:, update_mode: false)
+    def initialize(election_type_slug:, election_date_after: nil, election_date_before: nil, update_mode: false)
       @dc_api = DemocracyClub::DcApi.new
 
       @election_type_slug = election_type_slug
+      @election_date_after = election_date_after
+      @election_date_before = election_date_before
       @update_mode = update_mode
     end
 
     def call
-      @dc_api.elections(election_type: @election_type_slug).each do |page|
-        page.each do |election_json|
-          # It seems that the DC API doesn't pay attention to the Election Type Slug query param,
-          # so explicitly check the election type before creation
-          create_election(election_json) if election_json['slug'].split('.')&.first == @election_type_slug
+      @dc_api.ballots(
+        election_type: @election_type_slug,
+        election_date_after: @election_date_after,
+        election_date_before: @election_date_before,
+        has_results: true
+      ).each do |page|
+        page.each do |ballot_json|
+          begin
+            create_ballot(ballot_json)
+          rescue UnexpectedPostId => e
+            Rails.logger.error { e.message }
+          end
         end
       end
     end
 
     private
 
-    def create_election(election_json)
-      election = Election.find_or_initialize_by(slug: election_json['slug'])
+    def create_ballot(ballot_json)
+      ballot_paper_id = ballot_json['ballot_paper_id']
+      ballot = Ballot.find_or_initialize_by(democracy_club_id: ballot_paper_id)
 
-      return false unless @update_mode || election.new_record?
+      return false unless ballot.new_record? || @update_mode
 
-      election_type = ElectionType.find_by!(slug: election_json['slug'].split('.')&.first)
-      election.election_type = election_type
-      election.election_date = Date.parse(election_json['election_date'])
-      election.save!
+      result_json = @dc_api.result(ballot_paper_id: ballot_paper_id)
 
-      election_json['ballots'].map { |b| b['ballot_paper_id'] }.each do |ballot_paper_id|
-        ballot_json = @dc_api.ballot(ballot_paper_id: ballot_paper_id)
-        result_json = @dc_api.result(ballot_paper_id: ballot_paper_id)
+      election = find_or_create_election!(ballot_json['election'])
 
-        ballot = Ballot.find_or_initialize_by(democracy_club_id: ballot_json['ballot_paper_id'])
-        ballot.election = election
-        ballot.area = find_or_create_area_from_ballot!(ballot_json)
-        ballot.total_electorate = result_json['total_electorate']
-        ballot.turnout_number = result_json['num_turnout_reported']
-        ballot.turnout_percentage = result_json['turnout_percentage']
-        ballot.number_of_spoilt_ballots = result_json['num_spoilt_ballots']
+      ballot.election = election
+      ballot.area = find_or_create_area_from_ballot!(ballot_json)
+      ballot.total_electorate = result_json['total_electorate']
+      ballot.turnout_number = result_json['num_turnout_reported']
+      ballot.turnout_percentage = result_json['turnout_percentage']
+      ballot.number_of_spoilt_ballots = result_json['num_spoilt_ballots']
+      ballot.save!
 
-        result_json['candidate_results'].each do |candidate_result_json|
-          candidate = Candidate.find_or_initialize_by(
-            ballot: ballot,
-            person: find_or_create_person!(candidate_result_json.dig('person', 'id')),
-            party: find_or_create_party!(candidate_result_json.dig('party', 'ec_id'))
-          )
-          candidate.elected = (candidate_result_json['elected'] == true) # Required because DC API is NULL for some candidates
-          candidate.number_of_ballots = candidate_result_json['num_ballots']
-          candidate.save!
-        end
+      result_json['candidate_results'].each do |candidate_result_json|
+        candidate = Candidate.find_or_initialize_by(
+          ballot: ballot,
+          person: find_or_create_person!(candidate_result_json.dig('person', 'id')),
+          party: find_or_create_party!(candidate_result_json.dig('party', 'ec_id'))
+        )
+        candidate.elected = (candidate_result_json['elected'] == true) # Required because DC API is NULL for some candidates
+        candidate.number_of_ballots = candidate_result_json['num_ballots']
+        candidate.save!
       end
     end
+
+    def find_or_create_election!(election_json)
+      election_type = ElectionType.find_by!(slug: election_json['election_id'].split('.')&.first)
+
+      Election.find_or_create_by!(
+        slug: election_json['election_id'],
+        election_type: election_type,
+        election_date: Date.parse(election_json['election_date'])
+      )
+    end
+
+    # def create_election(election_json)
+    #   election = Election.find_or_initialize_by(slug: election_json['slug'])
+    #
+    #   return false unless @update_mode || election.new_record?
+    #
+    #   election_type = ElectionType.find_by!(slug: election_json['slug'].split('.')&.first)
+    #   election.election_type = election_type
+    #   election.election_date = Date.parse(election_json['election_date'])
+    #   election.save!
+    #
+    #   election_json['ballots'].map { |b| b['ballot_paper_id'] }.each do |ballot_paper_id|
+    #     ballot_json = @dc_api.ballot(ballot_paper_id: ballot_paper_id)
+    #     result_json = @dc_api.result(ballot_paper_id: ballot_paper_id)
+    #
+    #     ballot = Ballot.find_or_initialize_by(democracy_club_id: ballot_json['ballot_paper_id'])
+    #     ballot.election = election
+    #     ballot.area = find_or_create_area_from_ballot!(ballot_json)
+    #     ballot.total_electorate = result_json['total_electorate']
+    #     ballot.turnout_number = result_json['num_turnout_reported']
+    #     ballot.turnout_percentage = result_json['turnout_percentage']
+    #     ballot.number_of_spoilt_ballots = result_json['num_spoilt_ballots']
+    #
+    #     result_json['candidate_results'].each do |candidate_result_json|
+    #       candidate = Candidate.find_or_initialize_by(
+    #         ballot: ballot,
+    #         person: find_or_create_person!(candidate_result_json.dig('person', 'id')),
+    #         party: find_or_create_party!(candidate_result_json.dig('party', 'ec_id'))
+    #       )
+    #       candidate.elected = (candidate_result_json['elected'] == true) # Required because DC API is NULL for some candidates
+    #       candidate.number_of_ballots = candidate_result_json['num_ballots']
+    #       candidate.save!
+    #     end
+    #   end
+    # end
 
     def find_or_create_area_from_ballot!(ballot_json)
       ballot_id = ballot_json['ballot_paper_id']
       post_id = ballot_json.dig('post', 'id')
 
-      raise "No Post ID found for ballot #{ballot_id}" unless post_id.present?
+      raise UnexpectedPostId, "No Post ID found for ballot #{ballot_id}" unless post_id.present?
 
-      raise "Post ID is not a GSS code for ballot #{ballot_id}" unless post_id.starts_with?('gss:')
+      raise UnexpectedPostId, "Post ID #{post_id} is not a GSS code - for ballot #{ballot_id}" unless post_id.starts_with?('gss:')
 
       gss_code = post_id.remove(/^gss:/)
 
-      Area.find_by(gss_code: gss_code) || Mapit::MapitAreaCreator.call(gss_code: gss_code)
+      Area.find_by(gss_code: gss_code) || FindThatPostcode::FindThatPostcodeAreaCreator.call(gss_code: gss_code)
     end
 
     def find_or_create_person!(person_id)
@@ -104,4 +158,6 @@ module DemocracyClub
       party
     end
   end
+
+  class UnexpectedPostId < StandardError; end
 end

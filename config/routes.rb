@@ -3,4 +3,10 @@ Rails.application.routes.draw do
 
   # Defines the root path route ("/")
   # root "articles#index"
+
+  resources :areas, only: [:index, :show] do
+    member do
+      get 'boundary'
+    end
+  end
 end
