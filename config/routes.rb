@@ -7,6 +7,7 @@ Rails.application.routes.draw do
   resources :areas, only: [:index, :show] do
     member do
       get 'boundary'
+      get 'subareas'
     end
   end
 end

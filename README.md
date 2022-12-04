@@ -32,7 +32,7 @@ will provide an API to get data, as well as a UI to browse data.
 - Setup the database & schema (`rails db:create & rails db:migrate`)
 - Add initial seed data (`rails db:seed`)
 
-**Get data**
+**Load data into the app**
 
 The election data is loaded from [Democracy Club](https://democracyclub.org.uk/) and area /
 boundary data is loaded from [FindThatPostcode](https://findthatpostcode.uk/).

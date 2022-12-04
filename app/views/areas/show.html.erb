@@ -12,6 +12,10 @@
 
 <div id="map" style="height: 750px; width: 750px;"></div>
 
+<%= turbo_frame_tag :subareas, src: subareas_area_path(@area), loading: :lazy do %>
+  Loading sub-areas...
+<% end %>
+
 <script>
   var map = L.map('map').setView([51.505, -0.09], 13);
 
@@ -20,9 +24,9 @@
     attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
   }).addTo(map);
 
-  drawGeography('<%= @area.id %>', '<%= @area.name %>');
+  drawGeography('<%= @area.id %>', '<%= @area.name %>', '#ff0000');
 
-  async function drawGeography(areaId, areaName) {
+  async function drawGeography(areaId, areaName, color) {
     let response = await fetch(`/areas/${areaId}/boundary.geojson`);
 
     if (response.status === 200) {
@@ -39,9 +43,10 @@
         },
         "geometry": parsedGeoJsonData
       }, {
-        style: {color: "#ff0000"}
+        style: {color: color}
       });
       console.log(`currentRegionGeo is ${currentRegionGeo}`);
+      currentRegionGeo.bindPopup(`${areaName}`);
       currentRegionGeo.addTo(map);
     } else {
       console.log(`Could not get boundary for ${areaId}, HTTP response was ${response.status}`);

@@ -1,0 +1,11 @@
+<%= turbo_frame_tag :subareas do %>
+  <% @subareas.each do |area| %>
+    <tr>
+      <td><%= area.gss_code %></td>
+      <td><%= area.name %></td>
+      <script>
+        drawGeography('<%= area.id %>', '<%= area.name %>', '#00ff00');
+      </script>
+    </tr>
+  <% end %>
+<% end %>
