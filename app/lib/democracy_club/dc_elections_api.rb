@@ -1,12 +1,19 @@
 module DemocracyClub
-  class DcApi
-    BASE_URI = 'https://candidates.democracyclub.org.uk/api/next/'
+  # The main DC API is DemocracyClub::DcApi
+  #
+  # That API uses what seems to be the preferred / active DC endpoints, on their 'candidates' subdomain.
+  #
+  # However, some data about elections is not available with that API - specifically, for council elections,
+  # we want to know how many seats are in the ward in total, as well as how many seats are up for election.
+  # This data does not appear to be available on the 'candidates' API:
+  # - https://elections.democracyclub.org.uk/api/elections/local.arun.yapton.2023-05-04/
+  #   includes a 'seats_contested' as well as a 'seats_total' field.
+  # - https://candidates.democracyclub.org.uk/api/next/ballots/local.arun.yapton.2023-05-04/
+  #   only includes 'winner_count', with no way to know the total seats for the ward
+  class DcElectionsApi
+    BASE_URI = 'https://elections.democracyclub.org.uk/api/'
 
-    BALLOTS_URI = URI::join(BASE_URI, 'ballots/')
     ELECTIONS_URI = URI::join(BASE_URI, 'elections/')
-    PARTIES_URI = URI::join(BASE_URI, 'parties/')
-    PEOPLE_URI = URI::join(BASE_URI, 'people/')
-    RESULTS_URI = URI::join(BASE_URI, 'results/')
 
     def initialize
       retry_options = {
@@ -27,67 +34,21 @@ module DemocracyClub
       end
     end
 
-    # Get all ballots that match the given filters
+    # Get all elections that match the given filters
     # (or just all ballots if no params passed)
-    def ballots(election_type: nil, election_date_after: nil, election_date_before: nil, has_results: nil)
+    def elections(election_date: nil, election_id_regex: nil)
       get_paged_data(
-        BALLOTS_URI,
+        ELECTIONS_URI,
         {
-          election_type: election_type,
-          election_date_range_after: election_date_after&.strftime('%F'),
-          election_date_range_before: election_date_before&.strftime('%F'),
-          has_results: has_results
+          poll_open_date: election_date,
+          election_id_regex: election_id_regex
         }
       )
     end
 
-    # Get a single ballot
-    def ballot(ballot_paper_id:)
-      uri = URI::join(BALLOTS_URI, ERB::Util.url_encode(ballot_paper_id))
-      get_json_data(uri)
-    end
-
-    # Get all elections
-    def elections
-      get_paged_data(ELECTIONS_URI)
-    end
-
     # Get a single election
-    def election(election_slug:)
-      uri = URI::join(ELECTIONS_URI, ERB::Util.url_encode(election_slug))
-      get_json_data(uri)
-    end
-
-    # Get all parties
-    def parties
-      get_paged_data(PARTIES_URI)
-    end
-
-    # Get a single party
-    def party(party_ec_id:)
-      uri = URI::join(PARTIES_URI, ERB::Util.url_encode(party_ec_id))
-      get_json_data(uri)
-    end
-
-    # Get all people
-    def people
-      get_paged_data(PEOPLE_URI)
-    end
-
-    # Get a single person
-    def person(person_id:)
-      uri = URI::join(PEOPLE_URI, ERB::Util.url_encode(person_id))
-      get_json_data(uri)
-    end
-
-    # Get all results
-    def results
-      get_paged_data(RESULTS_URI)
-    end
-
-    # Get results of a single ballot
-    def result(ballot_paper_id:)
-      uri = URI::join(RESULTS_URI, ERB::Util.url_encode(ballot_paper_id))
+    def election(election_id:)
+      uri = URI::join(ELECTIONS_URI, ERB::Util.url_encode(election_id))
       get_json_data(uri)
     end
 
